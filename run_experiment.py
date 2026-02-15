@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import warnings
 import time
-import os
 import pandas as pd
 
 warnings.filterwarnings("ignore")
@@ -27,9 +26,9 @@ def main():
 
     ALGORITHMS = ["a2c", "ppo"]
 
-    HOPT_TRIALS = 1  
-    HOPT_EPISODES = 1  
-    NUM_EPISODES = 1
+    HOPT_TRIALS = 5  
+    HOPT_EPISODES = 10  
+    NUM_EPISODES = 10
 
     # ===============================================================
     # DATA PREPARATION
@@ -46,7 +45,7 @@ def main():
     filtered_options = prep.filter_options(
         min_dte=10,
         max_dte=100,
-        moneyness_range=(0.85, 1.15),
+        moneyness_range=(0.8, 1.2),
     )
 
     prep.fetch_index_data()
@@ -124,13 +123,13 @@ def main():
             storage="sqlite:///results/optuna/optuna.db"
         )
 
-        tuner.optimize_model(timeout=3600)  # 1 hour max
+        tuner.optimize_model(timeout=3600*6)  # 6 hour max
 
         tuner.compare_trials(top_n=5)
 
         print("\nTraining final model with best hyperparameters...")
         best_model = tuner.train_with_best_params(
-            total_timesteps=train_end_idx*NUM_EPISODES
+            total_timesteps=val_end_idx*NUM_EPISODES
         )
 
         best_models.append(best_model)
@@ -152,13 +151,6 @@ def main():
     print("\n" + "=" * 70)
     print("EXPERIMENT COMPLETE")
     print("=" * 70)
-
-    print("\nOutputs saved inside:")
-    print("  ./results/backtests/")
-    print("  ./results/baselines/")
-    print("  ./results/optuna/")
-    print("  ./results/figures/")
-
 
 if __name__ == "__main__":
     main()

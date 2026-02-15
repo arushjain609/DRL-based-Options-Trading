@@ -754,7 +754,7 @@ class OptionsTrainingPipeline:
         # ======================================================================
         for algorithm, df_account_value in all_results.items():
             print("\n" + "=" * 70)
-            print(f"{algorithm} KEY METRICS")
+            print(f"{algorithm.upper()} KEY METRICS")
             print("=" * 70)
             total_return = (
                 (df_account_value["account_value"].iloc[-1] - self.initial_capital)
@@ -838,18 +838,22 @@ class OptionsTrainingPipeline:
         option_baselines: dict = None,
     ):
         """
-        Plot comprehensive backtest results.
+        Plot separate backtest figures:
+        1. Portfolio value
+        2. Daily returns (all models + index)
+        3. Cumulative returns
         """
 
-        fig = plt.figure(figsize=(15, 10))
+        import os
+        os.makedirs("./results/figures", exist_ok=True)
 
-        # ======================================================================
-        # 1️⃣ Portfolio Value Comparison
-        # ======================================================================
-        ax1 = plt.subplot(3, 1, 1)
+        # ==========================================================
+        # 1️⃣ PORTFOLIO VALUE PLOT
+        # ==========================================================
+        plt.figure(figsize=(12, 6))
 
         for name, df_account_value in model_results.items():
-            ax1.plot(
+            plt.plot(
                 df_account_value["date"],
                 df_account_value["account_value"],
                 label=name,
@@ -857,76 +861,93 @@ class OptionsTrainingPipeline:
             )
 
         if df_baseline is not None:
-            ax1.plot(
+            plt.plot(
                 df_baseline["date"],
                 df_baseline["account_value"],
-                label=f"{baseline_ticker} Baseline",
-                color="orange",
+                label=f"{baseline_ticker}",
                 linewidth=2,
                 alpha=0.7,
             )
 
         if option_baselines is not None:
             for name, df_base in option_baselines.items():
-                ax1.plot(
-                    df_base["date"],
-                    df_base["account_value"],
-                    linestyle="--",
+                plt.plot(
+                    df_base['date'],
+                    df_base['account_value'],
+                    linestyle='--',
                     alpha=0.6,
-                    label=f"Baseline: {name}",
+                    label=f'Baseline: {name}'
                 )
 
-        ax1.axhline(
+        plt.axhline(
             y=self.initial_capital,
-            color="red",
             linestyle="--",
             linewidth=1,
             alpha=0.5,
             label="Initial Capital",
         )
 
-        ax1.set_xlabel("Date")
-        ax1.set_ylabel("Portfolio Value ($)")
-        ax1.set_title("Portfolio Value Comparison", fontweight="bold")
-        ax1.legend(loc="best")
-        ax1.grid(True, alpha=0.3)
+        plt.title("Portfolio Value Comparison", fontweight="bold")
+        plt.xlabel("Date")
+        plt.ylabel("Portfolio Value ($)")
+        plt.legend()
+        plt.grid(True, alpha=0.3)
 
-        # ======================================================================
-        # 2️⃣ Daily Returns (First Model Only – same behavior as original)
-        # ======================================================================
-        ax2 = plt.subplot(3, 1, 2)
+        portfolio_path = "./results/figures/portfolio_value.png"
+        plt.tight_layout()
+        plt.savefig(portfolio_path, dpi=300)
+        plt.close()
 
-        # Use first model for daily return plot (same as original implicit behavior)
-        first_model_name = list(model_results.keys())[0]
-        df_first = model_results[first_model_name]
+        print(f"✓ Portfolio value plot saved to {portfolio_path}")
 
-        ax2.plot(
-            df_first["date"][1:],
-            df_first["daily_return"][1:] * 100,
-            label="Daily Returns",
-            color="green",
-            alpha=0.7,
-        )
+        # ==========================================================
+        # 2️⃣ DAILY RETURNS (ALL MODELS + INDEX)
+        # ==========================================================
+        plt.figure(figsize=(12, 6))
 
-        ax2.axhline(y=0, color="black", linewidth=0.5)
+        for name, df_account_value in model_results.items():
+            plt.plot(
+                df_account_value["date"][1:],
+                df_account_value["daily_return"][1:] * 100,
+                label=name,
+                alpha=0.8,
+            )
 
-        ax2.set_xlabel("Date")
-        ax2.set_ylabel("Daily Return (%)")
-        ax2.set_title(f"{first_model_name} - Daily Returns", fontweight="bold")
-        ax2.legend(loc="best")
-        ax2.grid(True, alpha=0.3)
+        if df_baseline is not None:
+            df_baseline["daily_return"] = df_baseline["account_value"].pct_change()
+            plt.plot(
+                df_baseline["date"][1:],
+                df_baseline["daily_return"][1:] * 100,
+                label=f"{baseline_ticker}",
+                alpha=0.7,
+            )
 
-        # ======================================================================
-        # 3️⃣ Cumulative Returns
-        # ======================================================================
-        ax3 = plt.subplot(3, 1, 3)
+        plt.axhline(y=0, linewidth=0.8)
+
+        plt.title("Daily Returns Comparison", fontweight="bold")
+        plt.xlabel("Date")
+        plt.ylabel("Daily Return (%)")
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+
+        daily_path = "./results/figures/daily_returns.png"
+        plt.tight_layout()
+        plt.savefig(daily_path, dpi=300)
+        plt.close()
+
+        print(f"✓ Daily returns plot saved to {daily_path}")
+
+        # ==========================================================
+        # 3️⃣ CUMULATIVE RETURNS
+        # ==========================================================
+        plt.figure(figsize=(12, 6))
 
         for name, df_account_value in model_results.items():
             cumulative_returns = (
                 df_account_value["account_value"] / self.initial_capital - 1
             ) * 100
 
-            ax3.plot(
+            plt.plot(
                 df_account_value["date"],
                 cumulative_returns,
                 label=name,
@@ -938,30 +959,28 @@ class OptionsTrainingPipeline:
                 df_baseline["account_value"] / self.initial_capital - 1
             ) * 100
 
-            ax3.plot(
+            plt.plot(
                 df_baseline["date"],
                 baseline_returns,
                 label=baseline_ticker,
-                color="orange",
                 linewidth=2,
                 alpha=0.7,
             )
 
-        ax3.axhline(y=0, color="red", linestyle="--", linewidth=1, alpha=0.5)
+        plt.axhline(y=0, linestyle="--", linewidth=1, alpha=0.5)
 
-        ax3.set_xlabel("Date")
-        ax3.set_ylabel("Cumulative Return (%)")
-        ax3.set_title("Cumulative Returns Comparison", fontweight="bold")
-        ax3.legend(loc="best")
-        ax3.grid(True, alpha=0.3)
+        plt.title("Cumulative Returns Comparison", fontweight="bold")
+        plt.xlabel("Date")
+        plt.ylabel("Cumulative Return (%)")
+        plt.legend()
+        plt.grid(True, alpha=0.3)
 
+        cumulative_path = "./results/figures/cumulative_returns.png"
         plt.tight_layout()
-
-        plot_path = "./results/backtest_plot.png"
-        plt.savefig(plot_path, dpi=300, bbox_inches="tight")
+        plt.savefig(cumulative_path, dpi=300)
         plt.close()
 
-        print(f"✓ Backtest plots saved to {plot_path}")
+        print(f"✓ Cumulative returns plot saved to {cumulative_path}")
 
     def diagnose_environment(self, mode="test", print_positions=True):
         """

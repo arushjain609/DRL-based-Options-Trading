@@ -94,25 +94,11 @@ class OptionsHyperparameterTuning:
         else:
             raise ValueError("Unsupported algorithm")
 
-        reward_scaling = trial.suggest_float(
-            "reward_scaling", 1e-5, 1e-3, log=True
-        )
-
         print("\n" + "=" * 70)
         print(f"Trial {trial.number}")
         print("=" * 70)
 
-        # -----------------------------------------------------------
-        # Save original pipeline parameters
-        # -----------------------------------------------------------
-        original_reward_scaling = self.pipeline.reward_scaling
-        original_transaction_cost = self.pipeline.transaction_cost_pct
-
         try:
-            # Apply trial-specific settings
-            self.pipeline.reward_scaling = reward_scaling
-            self.pipeline.transaction_cost_pct = original_transaction_cost
-
             # -------------------------------------------------------
             # Create environments
             # -------------------------------------------------------
@@ -184,10 +170,6 @@ class OptionsHyperparameterTuning:
             return -1e6
 
         finally:
-            # Always restore pipeline parameters
-            self.pipeline.reward_scaling = original_reward_scaling
-            self.pipeline.transaction_cost_pct = original_transaction_cost
-
             try:
                 train_env.close()
                 val_env.close()
