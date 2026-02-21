@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import warnings
-import time
-import pandas as pd
 
 warnings.filterwarnings("ignore")
 
@@ -10,25 +8,31 @@ from src.data_load import DataPreparation
 from src.pipeline import OptionsTrainingPipeline
 from src.hopt import OptionsHyperparameterTuning
 
+from src.config import (
+    DataConfig,
+    TradingConfig,
+    HyperOptConfig,
+)
 
 def main():
 
     # ===============================================================
-    # CONFIGURATION
+    # LOAD CONFIGURATIONS
     # ===============================================================
-    OPTION_SYMBOL = "GLD"
-    OPTIONS_DATA_PATH = f"C:\\Users\\arush\\Desktop\\Semester\\BTP\\Dataset\\{OPTION_SYMBOL}.csv" 
 
-    INITIAL_CAPITAL = 100000
-    TRANSACTION_COST = 0.0005
-    MAX_CONTRACTS = 100
-    REWARD_SCALING = 1
+    data_cfg = DataConfig()
+    trade_cfg = TradingConfig()
+    hopt_cfg = HyperOptConfig()
 
-    ALGORITHMS = ["a2c", "ppo"]
+    OPTION_SYMBOL = data_cfg.option_symbol
+    OPTIONS_DATA_PATH = data_cfg.options_data_path
 
-    HOPT_TRIALS = 5  
-    HOPT_EPISODES = 10  
-    NUM_EPISODES = 10
+    INITIAL_CAPITAL = trade_cfg.initial_capital
+    TRANSACTION_COST = trade_cfg.transaction_cost_pct
+    MAX_CONTRACTS = trade_cfg.max_contracts_per_position
+    REWARD_SCALING = trade_cfg.reward_scaling
+
+    ALGORITHMS = hopt_cfg.algorithms
 
     # ===============================================================
     # DATA PREPARATION
@@ -40,12 +44,12 @@ def main():
 
     prep = DataPreparation(OPTION_SYMBOL)
 
-    options_data = prep.load_options_data(OPTIONS_DATA_PATH)
+    prep.load_options_data(OPTIONS_DATA_PATH)
 
     filtered_options = prep.filter_options(
-        min_dte=10,
-        max_dte=100,
-        moneyness_range=(0.8, 1.2),
+        min_dte=data_cfg.min_dte,
+        max_dte=data_cfg.max_dte,
+        moneyness_range=data_cfg.moneyness_range,
     )
 
     prep.fetch_index_data()
@@ -61,14 +65,14 @@ def main():
     print(f"✓ Options rows: {len(df_options)}")
 
     # ===============================================================
-    # TRAIN / VAL / TEST SPLIT (70 / 10 / 20)
+    # TRAIN / VAL / TEST SPLIT
     # ===============================================================
 
     dates = sorted(df_index["date"].unique())
     n_dates = len(dates)
 
-    train_end_idx = int(n_dates * 0.70)
-    val_end_idx = int(n_dates * 0.80)
+    train_end_idx = int(n_dates * data_cfg.train_split)
+    val_end_idx = int(n_dates * data_cfg.val_split)
 
     train_start = dates[0]
     train_end = dates[train_end_idx]
@@ -116,20 +120,20 @@ def main():
         tuner = OptionsHyperparameterTuning(
             pipeline=pipeline,
             algorithm=algorithm,
-            n_trials=HOPT_TRIALS,  # increase for real experiments
-            n_timesteps=train_end_idx*HOPT_EPISODES,
-            n_eval_episodes=1,
+            n_trials=hopt_cfg.n_trials,
+            n_timesteps=train_end_idx * hopt_cfg.hopt_episodes_multiplier,
+            n_eval_episodes=hopt_cfg.n_eval_episodes,
             study_name=f"options_{algorithm}_study",
-            storage="sqlite:///results/optuna/optuna.db"
+            storage=hopt_cfg.storage,
         )
 
-        tuner.optimize_model(timeout=3600*6)  # 6 hour max
+        tuner.optimize_model(timeout=hopt_cfg.timeout_seconds)
 
-        tuner.compare_trials(top_n=5)
+        tuner.compare_trials(top_n=hopt_cfg.top_n_trials_to_compare)
 
         print("\nTraining final model with best hyperparameters...")
         best_model = tuner.train_with_best_params(
-            total_timesteps=val_end_idx*NUM_EPISODES
+            total_timesteps=val_end_idx * hopt_cfg.final_train_multiplier
         )
 
         best_models.append(best_model)
@@ -142,7 +146,7 @@ def main():
     print("BACKTESTING ON TEST SET")
     print("=" * 70)
 
-    results, actions, stats, baseline_stats = pipeline.backtest(
+    pipeline.backtest(
         models=best_models,
         model_names=ALGORITHMS,
         option_symbol=OPTION_SYMBOL,
@@ -151,6 +155,7 @@ def main():
     print("\n" + "=" * 70)
     print("EXPERIMENT COMPLETE")
     print("=" * 70)
+
 
 if __name__ == "__main__":
     main()
