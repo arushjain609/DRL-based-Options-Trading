@@ -17,7 +17,7 @@ RESULTS_DIR = os.path.join(BASE_DIR, "results")
 FIGURES_DIR = os.path.join(RESULTS_DIR, "figures")
 
 TENSORBOARD_DIR = os.path.join(BASE_DIR, "tensorboard_logs")
-LOGS_DIR = os.path.join(BASE_DIR, "logs")
+LOGS_DIR = os.path.join(RESULTS_DIR, "logs")
 MODEL_DIR = os.path.join(BASE_DIR, "trained_models")
 
 # Auto-create required folders
@@ -58,6 +58,7 @@ class TradingConfig:
     transaction_cost_pct: float = 0.0005
     max_contracts_per_position: int = 100
     reward_scaling: float = 1.0
+    contract_filter: str = "volume"  # volume / iv (implied volatility) / open_interest
 
 
 # ==============================================================
@@ -73,6 +74,7 @@ class HyperOptConfig:
     final_train_multiplier: int = 500
 
     n_eval_episodes: int = 1
+    eval_freq: int = 500
     timeout_seconds: int = 3600 * 6
 
     top_n_trials_to_compare: int = 5

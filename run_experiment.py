@@ -31,6 +31,7 @@ def main():
     TRANSACTION_COST = trade_cfg.transaction_cost_pct
     MAX_CONTRACTS = trade_cfg.max_contracts_per_position
     REWARD_SCALING = trade_cfg.reward_scaling
+    CONTRACT_FILTER = trade_cfg.contract_filter
 
     ALGORITHMS = hopt_cfg.algorithms
 
@@ -103,6 +104,7 @@ def main():
         transaction_cost_pct=TRANSACTION_COST,
         max_contracts_per_position=MAX_CONTRACTS,
         reward_scaling=REWARD_SCALING,
+        contract_filter=CONTRACT_FILTER,
     )
 
     best_models = []
@@ -123,6 +125,7 @@ def main():
             n_trials=hopt_cfg.n_trials,
             n_timesteps=train_end_idx * hopt_cfg.hopt_episodes_multiplier,
             n_eval_episodes=hopt_cfg.n_eval_episodes,
+            eval_freq=hopt_cfg.eval_freq,
             study_name=f"options_{algorithm}_study",
             storage=hopt_cfg.storage,
         )

@@ -48,7 +48,7 @@ class OptionsHyperparameterTuning:
         self.storage = storage
 
         os.makedirs('./results/optuna', exist_ok=True)
-        os.makedirs('./optuna_models', exist_ok=True)
+        os.makedirs('./results/optuna/optuna_models', exist_ok=True)
 
         self.best_params: Dict = {}
         self.best_model = None
@@ -83,7 +83,7 @@ class OptionsHyperparameterTuning:
 
             model_kwargs = {
                 "learning_rate": trial.suggest_float("learning_rate", 1e-5, 5e-4, log=True),
-                "n_steps": trial.suggest_int("n_steps", 512, 4096, step=512),
+                "n_steps": trial.suggest_int('n_steps', 128, 512, step=128),
                 "batch_size": trial.suggest_categorical("batch_size", [32, 64, 128]),
                 "n_epochs": trial.suggest_int("n_epochs", 5, 20),
                 "gamma": trial.suggest_float("gamma", 0.9, 0.9999),
@@ -301,7 +301,7 @@ class OptionsHyperparameterTuning:
 
         # Save study
         # Ensure directory exists
-        results_dir = os.path.join(os.getcwd(), "optuna_results")
+        results_dir = os.path.join(os.getcwd(), "results/optuna/optuna_results")
         os.makedirs(results_dir, exist_ok=True)
 
         study_path = os.path.join(results_dir, f"{self.study_name}.pkl")
@@ -311,7 +311,7 @@ class OptionsHyperparameterTuning:
         # Save best params
         import json
 
-        params_path = f"./optuna_results/{self.study_name}_best_params.json"
+        params_path = f"./results/optuna/optuna_results/{self.study_name}_best_params.json"
         with open(params_path, "w") as f:
             json.dump(best_trial.params, f, indent=2)
 
@@ -384,14 +384,14 @@ class OptionsHyperparameterTuning:
             total_timesteps=total_timesteps,
             model_kwargs=model_kwargs,
             tensorboard_log="./tensorboard_logs/best_model/",
-            eval_freq=500,
+            eval_freq=self.eval_freq,
             n_eval_episodes=1,
             resume=True,
         )
 
         trained_model = trained_model_dict[self.algorithm]
 
-        best_model_path = f"./optuna_models/{self.algorithm}_best_hyperparams_final"
+        best_model_path = f"./results/optuna/optuna_models/{self.algorithm}_best_hyperparams_final"
         trained_model.save(best_model_path)
 
         print(f"\n✓ Best model saved to: {best_model_path}")
@@ -420,7 +420,7 @@ class OptionsHyperparameterTuning:
                 plot_slice,
             )
 
-            output_dir = "./optuna_results"
+            output_dir = "./results/optuna/optuna_results"
 
             # 1️⃣ Optimization history
             fig1 = plot_optimization_history(study)
@@ -470,7 +470,7 @@ class OptionsHyperparameterTuning:
             print("⚠ No study results found. Run optimize_model() first.")
             return
 
-        study_path = f"./optuna_results/{self.study_name}.pkl"
+        study_path = f"./results/optuna/optuna_results/{self.study_name}.pkl"
 
         if not os.path.exists(study_path):
             print(f"⚠ Study file not found: {study_path}")
@@ -508,7 +508,7 @@ class OptionsHyperparameterTuning:
 
         print("\n", df_comparison.to_string(index=False))
 
-        csv_path = f"./optuna_results/{self.study_name}_top_trials.csv"
+        csv_path = f"./results/optuna/optuna_results/{self.study_name}_top_trials.csv"
         df_comparison.to_csv(csv_path, index=False)
 
         print(f"\n✓ Comparison saved to: {csv_path}")

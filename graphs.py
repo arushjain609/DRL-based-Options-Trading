@@ -8,22 +8,26 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-from src.config import FIGURES_DIR, LOGS_DIR, RESULTS_DIR, HyperOptConfig, DataConfig
+from src.config import FIGURES_DIR, LOGS_DIR, HyperOptConfig, DataConfig
 
 hopt_cfg = HyperOptConfig()
 data_cfg = DataConfig()
 
 OPTION_SYMBOL = data_cfg.option_symbol
 ALGORITHMS = hopt_cfg.algorithms
+EVAL_FREQ = hopt_cfg.eval_freq
 
 for algorithm in ALGORITHMS:
 
     progress_path = os.path.join(
-        RESULTS_DIR, algorithm.lower(), "progress.csv"
+        LOGS_DIR, algorithm.lower(), "progress.csv"
     )
 
     df = pd.read_csv(progress_path)
     df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
+
+    df = df[df["time/total_timesteps"] % EVAL_FREQ == 0]
+    df = df.dropna(subset=["time/total_timesteps"])
 
     x = df["time/total_timesteps"]
 
@@ -32,6 +36,7 @@ for algorithm in ALGORITHMS:
     )
 
     train_log = pd.read_csv(train_log_path)
+
     train_rewards = np.array(
         train_log.iloc[1:].index.astype(float).to_list()
     )
@@ -57,25 +62,26 @@ for algorithm in ALGORITHMS:
         plt.savefig(save_path, dpi=300)
         plt.close()
 
-    except:
-        pass
+    except Exception as e:
+        print(f"⚠ Training reward plot failed for {algorithm}: {e}")
 
     # ---------------------------------------------------------
     # 2️⃣ Evaluation Mean Reward
     # ---------------------------------------------------------
-    plt.figure(figsize=(8, 5))
-    plt.plot(x, df["eval/mean_reward"])
-    plt.xlabel("Timesteps")
-    plt.ylabel("Eval Mean Reward")
-    plt.title(f"Evaluation Reward - {algorithm.upper()} - {OPTION_SYMBOL}")
-    plt.grid(True)
+    if "eval/mean_reward" in df.columns:
+        plt.figure(figsize=(8, 5))
+        plt.plot(x, df["eval/mean_reward"])
+        plt.xlabel("Timesteps")
+        plt.ylabel("Eval Mean Reward")
+        plt.title(f"Evaluation Reward - {algorithm.upper()} - {OPTION_SYMBOL}")
+        plt.grid(True)
 
-    save_path = os.path.join(
-        FIGURES_DIR,
-        f"{algorithm}_evaluation_reward.png"
-    )
-    plt.savefig(save_path, dpi=300)
-    plt.close()
+        save_path = os.path.join(
+            FIGURES_DIR,
+            f"{algorithm}_evaluation_reward.png"
+        )
+        plt.savefig(save_path, dpi=300)
+        plt.close()
 
     # ---------------------------------------------------------
     # 3️⃣ Entropy

@@ -38,6 +38,7 @@ class OptionsEnv(gym.Env):
         max_contracts_per_position: int = 10,
         risk_free_rate: float = 0.03,
         reward_scaling: float = 1e-2,
+        contract_filter: str = "volume",
     ):
         """
         Initialize the options trading environment.
@@ -118,6 +119,7 @@ class OptionsEnv(gym.Env):
         self.max_contracts_per_position = max_contracts_per_position
         self.risk_free_rate = risk_free_rate
         self.reward_scaling = reward_scaling
+        self.contract_filter = contract_filter
 
         # Characteristic buckets
         self.moneyness_buckets = [
@@ -649,7 +651,7 @@ class OptionsEnv(gym.Env):
             return None
 
         df_filtered = pd.DataFrame(filtered)
-        df_filtered = df_filtered.sort_values("volume", ascending=False)
+        df_filtered = df_filtered.sort_values(self.contract_filter, ascending=False)
 
         return df_filtered.iloc[0]
     
@@ -1021,10 +1023,6 @@ class OptionsEnv(gym.Env):
         if options_today is None:
             return {}
 
-        held_symbols = {
-            pos["option_symbol"] for pos in self.positions.values()
-        }
-
         bucketed_options = {}
 
         for m_name, m_min, m_max in self.moneyness_buckets:
@@ -1047,15 +1045,14 @@ class OptionsEnv(gym.Env):
 
                         symbol = opt["option_symbol"]
 
-                        if symbol in held_symbols or symbol not in candidates:
-                            candidates[symbol] = opt
+                        candidates[symbol] = opt
 
                     if not candidates:
                         continue
 
                     best_option = max(
                         candidates.values(),
-                        key=lambda x: x.get("volume", 0.0),
+                        key=lambda x: x.get(self.contract_filter, 0.0),
                     )
 
                     bucketed_options[bucket_key] = best_option

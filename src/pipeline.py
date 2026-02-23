@@ -49,6 +49,7 @@ class OptionsTrainingPipeline:
         transaction_cost_pct: float = 0.001,
         max_contracts_per_position: int = 10,
         reward_scaling: float = 1e-2,
+        contract_filter: str = "volume",
     ):
         """
         Initialize the training pipeline.
@@ -83,6 +84,7 @@ class OptionsTrainingPipeline:
         self.transaction_cost_pct = transaction_cost_pct
         self.max_contracts_per_position = max_contracts_per_position
         self.reward_scaling = reward_scaling
+        self.contract_filter = contract_filter
 
         # ------------------------------------------------------------------
         # Directory setup
@@ -90,7 +92,8 @@ class OptionsTrainingPipeline:
         os.makedirs("./results", exist_ok=True)
         os.makedirs("./trained_models", exist_ok=True)
         os.makedirs("./trained_models/checkpoints", exist_ok=True)
-        os.makedirs("./logs", exist_ok=True)
+        os.makedirs("./results/logs", exist_ok=True)
+        os.makedirs("./results/baseline", exist_ok=True)
         os.makedirs("./tensorboard_logs", exist_ok=True)
 
         # ------------------------------------------------------------------
@@ -238,6 +241,7 @@ class OptionsTrainingPipeline:
             transaction_cost_pct=self.transaction_cost_pct,
             max_contracts_per_position=self.max_contracts_per_position,
             reward_scaling=self.reward_scaling,
+            contract_filter=self.contract_filter,
         )
 
         # Attach mode attribute (used for diagnostics / logging)
@@ -336,7 +340,7 @@ class OptionsTrainingPipeline:
             train_env = DummyVecEnv([
                 lambda: Monitor(
                     self.create_env(self.train_index, self.train_options, mode="train"),
-                    filename=f"./logs/{algo_name}/train_monitor.csv",
+                    filename=f"./results/logs/{algo_name}/train_monitor.csv",
                 )
             ])
 
@@ -344,7 +348,7 @@ class OptionsTrainingPipeline:
             val_env = DummyVecEnv([
                 lambda: Monitor(
                     self.create_env(self.val_index, self.val_options, mode="validation"),
-                    filename=f"./logs/{algo_name}/val_monitor.csv",
+                    filename=f"./results/logs/{algo_name}/val_monitor.csv",
                 )
             ])
 
@@ -362,7 +366,7 @@ class OptionsTrainingPipeline:
             eval_callback = EvalCallback(
                 val_env,
                 best_model_save_path="./trained_models/",
-                log_path="./logs/",
+                log_path="./results/logs/",
                 eval_freq=eval_freq,
                 deterministic=True,
                 render=False,
@@ -427,7 +431,7 @@ class OptionsTrainingPipeline:
             # ------------------------------------------------------------------
             # Logger Setup
             # ------------------------------------------------------------------
-            tmp_path = f"./results/{algo_name}"
+            tmp_path = f"./results/logs/{algo_name}"
             os.makedirs(tmp_path, exist_ok=True)
 
             new_logger = configure(tmp_path, ["stdout", "csv", "tensorboard"])
@@ -745,7 +749,7 @@ class OptionsTrainingPipeline:
             )
 
             backtest_stats(df_base_opt, value_col_name="account_value")
-            df_base_opt.to_csv(f"./results/baseline_{b}.csv", index=False)
+            df_base_opt.to_csv(f"./results/baseline/baseline_{b}.csv", index=False)
 
             print(f"✓ Completed baseline: {b}")
 
@@ -793,7 +797,7 @@ class OptionsTrainingPipeline:
             baseline_ticker,
             option_baselines={
                 k: pd.read_csv(
-                    f"./results/baseline_{k}.csv",
+                    f"./results/baseline/baseline_{k}.csv",
                     parse_dates=["date"],
                 )
                 for k in option_baselines
@@ -901,41 +905,48 @@ class OptionsTrainingPipeline:
         print(f"✓ Portfolio value plot saved to {portfolio_path}")
 
         # ==========================================================
-        # 2️⃣ DAILY RETURNS (ALL MODELS + INDEX)
+        # 2️⃣ DAILY RETURNS (ONE PLOT PER MODEL)
         # ==========================================================
-        plt.figure(figsize=(12, 6))
 
         for name, df_account_value in model_results.items():
+
+            plt.figure(figsize=(12, 6))
+
+            # Model daily returns
             plt.plot(
                 df_account_value["date"][1:],
                 df_account_value["daily_return"][1:] * 100,
-                label=name,
+                label=f"{name}",
                 alpha=0.8,
             )
 
-        if df_baseline is not None:
-            df_baseline["daily_return"] = df_baseline["account_value"].pct_change()
-            plt.plot(
-                df_baseline["date"][1:],
-                df_baseline["daily_return"][1:] * 100,
-                label=f"{baseline_ticker}",
-                alpha=0.7,
-            )
+            # Baseline / Underlying
+            if df_baseline is not None:
+                df_baseline["daily_return"] = df_baseline["account_value"].pct_change()
 
-        plt.axhline(y=0, linewidth=0.8)
+                plt.plot(
+                    df_baseline["date"][1:],
+                    df_baseline["daily_return"][1:] * 100,
+                    label=f"{baseline_ticker}",
+                    alpha=0.7,
+                )
 
-        plt.title("Daily Returns Comparison", fontweight="bold")
-        plt.xlabel("Date")
-        plt.ylabel("Daily Return (%)")
-        plt.legend()
-        plt.grid(True, alpha=0.3)
+            plt.axhline(y=0, linewidth=0.8)
 
-        daily_path = "./results/figures/daily_returns.png"
-        plt.tight_layout()
-        plt.savefig(daily_path, dpi=300)
-        plt.close()
+            plt.title(f"Daily Returns: {name} vs {baseline_ticker}", fontweight="bold")
+            plt.xlabel("Date")
+            plt.ylabel("Daily Return (%)")
+            plt.legend()
+            plt.grid(True, alpha=0.3)
 
-        print(f"✓ Daily returns plot saved to {daily_path}")
+            # Save separately per model
+            daily_path = f"./results/figures/daily_returns_{name}.png"
+
+            plt.tight_layout()
+            plt.savefig(daily_path, dpi=300)
+            plt.close()
+
+            print(f"✓ Daily returns plot saved to {daily_path}")
 
         # ==========================================================
         # 3️⃣ CUMULATIVE RETURNS
